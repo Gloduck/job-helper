@@ -7,6 +7,7 @@
 // @description  为相关的求职平台（BOSS直聘、拉勾、智联招聘、猎聘）添加一些实用的小功能，如自定义薪资范围、过滤黑名单公司等。
 // @match        https://www.zhipin.com/*
 // @match        https://m.zhipin.com/*
+// @match        https://c.liepin.com/*
 // @grant        GM_registerMenuCommand
 // @grant        GM_setValue
 // @grant        GM_getValue
@@ -17,7 +18,7 @@
 
     // 策略枚举
     const JobPlatform = {
-        BOSS_ZHIPIN: Symbol('Boss'), LAGOU: Symbol('Lagou'), UNKNOWN: Symbol('未知网站')
+        BOSS_ZHIPIN: Symbol('Boss'), LAGOU: Symbol('Lagou'), LIEPIN: Symbol('Liepin'), UNKNOWN: Symbol('未知网站')
     };
 
     const JobPageType = {
@@ -326,6 +327,8 @@
         const href = window.location.href;
         if (href.includes('zhipin.com')) {
             return JobPlatform.BOSS_ZHIPIN;
+        } else if (href.includes('liepin.com')) {
+            return JobPlatform.LIEPIN;
         } else {
             return JobPlatform.UNKNOWN;
         }
@@ -339,6 +342,8 @@
         switch (choosePlatForm()) {
             case JobPlatform.BOSS_ZHIPIN:
                 return new BossStrategy();
+            case JobPlatform.LIEPIN:
+                return new LiepinStrategy();
             default:
                 throw new Error('Unsupported platform')
         }
@@ -354,7 +359,12 @@
         const match = salaryRange.match(regex);
 
         if (!match) {
-            throw new Error('Invalid salary range format');
+            if (salaryRange.includes('面议')) {
+                return {
+                    min: 0, max: Infinity,
+                }
+            }
+            throw new Error(`Invalid salary range format( ${salaryRange} )`);
         }
 
         // 提取最小值和最大值
@@ -567,6 +577,165 @@
 
     }
 
+    class LiepinStrategy extends PlatFormStrategy {
+        fetchJobPageType() {
+            if (document.querySelector("#home-main-box-container") != null) {
+                return JobPageType.RECOMMEND;
+            } else if (document.querySelector('#lp-search-job-box') != null) {
+                return JobPageType.SEARCH;
+            } else if (document.querySelector('.home-container  .recommend-job') != null) {
+                return JobPageType.MOBILE_RECOMMEND;
+            } else if (document.querySelector('.so-job-job-list') != null) {
+                return JobPageType.MOBILE_SEARCH;
+            }
+        }
+
+        fetchJobElements(jobPageType) {
+            if (jobPageType === JobPageType.SEARCH) {
+            } else if (jobPageType === JobPageType.RECOMMEND) {
+                return document.querySelectorAll('ul.pull-up-content > li.pull-up-li');
+            } else if (jobPageType === JobPageType.MOBILE_SEARCH) {
+            } else if (jobPageType === JobPageType.MOBILE_RECOMMEND) {
+            } else {
+                throw new Error('Not a job element')
+            }
+        }
+
+        fetchJobUniqueKey(jobElement, jobPageType) {
+            if (jobElement.classList.contains('filter-blocked')) {
+                return null;
+            }
+            if (jobPageType === JobPageType.SEARCH) {
+            } else if (jobPageType === JobPageType.RECOMMEND) {
+                const element = jobElement.querySelector('.job-detail-box > a');
+                if(element == null){
+                    return null;
+                }
+                const url = element.href;
+                if (url === null) {
+                    return null;
+                }
+                return new URLSearchParams(new URL(url).search).get('job_id');
+            } else if (jobPageType === JobPageType.MOBILE_SEARCH) {
+            } else if (jobPageType === JobPageType.MOBILE_RECOMMEND) {
+            } else {
+                throw new Error('Not a job element')
+            }
+        }
+
+        async parseSalary(jobElement, jobPageType) {
+            if (jobPageType === JobPageType.SEARCH) {
+            } else if (jobPageType === JobPageType.RECOMMEND) {
+                const salary = jobElement.querySelector('.job-detail-box > a > div > span:last-child').textContent;
+                return parseSalaryToMonthly(salary);
+            } else if (jobPageType === JobPageType.MOBILE_SEARCH) {
+            } else if (jobPageType === JobPageType.MOBILE_RECOMMEND) {
+            } else {
+                throw new Error('Not a job element')
+            }
+        }
+
+        async parseCompanyName(jobElement, jobPageType) {
+            if (jobPageType === JobPageType.SEARCH) {
+            } else if (jobPageType === JobPageType.RECOMMEND) {
+                return jobElement.querySelector('.job-detail-box > div > div > span').textContent;
+            } else if (jobPageType === JobPageType.MOBILE_SEARCH) {
+            } else if (jobPageType === JobPageType.MOBILE_RECOMMEND) {
+            } else {
+                throw new Error('Not a job element')
+            }
+        }
+
+        async parseJobName(jobElement, jobPageType) {
+            if (jobPageType === JobPageType.SEARCH) {
+            } else if (jobPageType === JobPageType.RECOMMEND) {
+                return jobElement.querySelector('.job-detail-box > a > div > div > div').textContent;
+            } else if (jobPageType === JobPageType.MOBILE_SEARCH) {
+            } else if (jobPageType === JobPageType.MOBILE_RECOMMEND) {
+            } else {
+                throw new Error('Not a job element')
+            }
+        }
+
+        async jobIsActive(jobElement, jobPageType) {
+            if (jobPageType === JobPageType.SEARCH) {
+            } else if (jobPageType === JobPageType.RECOMMEND) {
+                const onlineMessage = jobElement.querySelector('.recruiter-info-box').textContent;
+                if (onlineMessage == null) {
+                    return false;
+                }
+                return onlineMessage.includes('在线');
+            } else if (jobPageType === JobPageType.MOBILE_SEARCH) {
+            } else if (jobPageType === JobPageType.MOBILE_RECOMMEND) {
+            } else {
+                throw new Error('Not a job element')
+            }
+        }
+
+        addViewedCallback(jobElement, jobPageType, eventCallback) {
+            jobElement.addEventListener('click', eventCallback, true);
+        }
+
+
+        markCurJobElement(jobElement, jobPageType, jobFilterTypes) {
+            let container;
+            if (jobPageType === JobPageType.SEARCH) {
+            } else if (jobPageType === JobPageType.RECOMMEND) {
+                container = jobElement.querySelector('.job-detail-box a > div');
+            } else if (jobPageType === JobPageType.MOBILE_SEARCH) {
+            } else if (jobPageType === JobPageType.MOBILE_RECOMMEND) {
+            } else {
+                throw new Error('Not a job element')
+            }
+            if (container == null) {
+                return;
+            }
+
+            let markSpan = container.querySelector('.mark');
+            if (markSpan === null) {
+                markSpan = document.createElement('span');
+                markSpan.classList.add('mark');
+                markSpan.style.color = 'red';
+                markSpan.style.float = 'left';
+                container.insertBefore(markSpan, container.firstChild);
+            }
+            markSpan.textContent = '(' + jobFilterTypes.map(jobFilterType => this.convertFilterTypeToMessage(jobFilterType)).join('|') + ')';
+        }
+
+        blockCurJobElement(jobElement, jobPageType, jobFilterTypes) {
+            jobElement.classList.add('filter-blocked');
+            const message = jobFilterTypes.map(jobFilterType => this.convertFilterTypeToMessage(jobFilterType)).join('|');
+            if (jobPageType === JobPageType.SEARCH) {
+            } else if (jobPageType === JobPageType.RECOMMEND) {
+                const cardBody = jobElement.querySelector('.job-detail-box > a');
+                cardBody.innerHTML = `
+                    <div class="tip" style="color: dimgray; font-weight: bold; font-size: large; padding-top: 20px">已屏蔽</div>
+                `;
+                const cardFooter = jobElement.querySelector('div[data-nick="job-detail-company-info"] > div');
+                cardFooter.innerHTML = `
+                    <span>${message}</span>
+                `;
+                const avatar = jobElement.querySelector('div.job-card-right-box');
+                avatar.innerHTML = ``;
+                jobElement.style.backgroundColor = '#e1e1e1';
+            } else if (jobPageType === JobPageType.MOBILE_SEARCH) {
+            } else if (jobPageType === JobPageType.MOBILE_RECOMMEND) {
+            } else {
+                throw new Error('Not a job element')
+            }
+        }
+
+        removeCurJobElement(jobElement, jobPageType) {
+            if(jobPageType === JobPageType.RECOMMEND){
+                // 如果直接删除元素页面切换tab的时候会报错，这里隐藏
+                // jobElement.style.display = 'none';
+                jobElement.innerHTML = ``;
+            } else {
+                jobElement.parentElement.removeChild(jobElement);
+            }
+        }
+    }
+
     class BossStrategy extends PlatFormStrategy {
         fetchJobPageType() {
             if (document.querySelector('.search-job-result') != null) {
@@ -594,6 +763,9 @@
         }
 
         fetchJobUniqueKey(jobElement, jobPageType) {
+            if (jobElement.classList.contains('filter-blocked')) {
+                return null;
+            }
             if (jobPageType === JobPageType.SEARCH) {
                 const element = jobElement.querySelector('.job-card-left');
                 if (element == null) {
@@ -619,9 +791,7 @@
                 if (element == null) {
                     return null;
                 }
-                if (element.classList.contains('delete')) {
-                    return null;
-                }
+
                 const url = element.href;
                 if (url == null) {
                     return null;
@@ -721,6 +891,7 @@
         }
 
         blockCurJobElement(jobElement, jobPageType, jobFilterTypes) {
+            jobElement.classList.add('filter-blocked');
             const message = jobFilterTypes.map(jobFilterType => this.convertFilterTypeToMessage(jobFilterType)).join('|');
             if (jobPageType === JobPageType.SEARCH) {
                 const cardBody = jobElement.querySelector('.job-card-body');
@@ -746,7 +917,6 @@
                 this.changeJobElementColor(jobElement, jobPageType);
             } else if (jobPageType === JobPageType.MOBILE_SEARCH || jobPageType === JobPageType.MOBILE_RECOMMEND) {
                 const cardBody = jobElement.querySelector('a');
-                cardBody.classList.add('delete');
                 cardBody.innerHTML = `
                     <div class="tip" style="color: dimgray; font-weight: bold; font-size: large; padding-top: 20px">已屏蔽</div>
                     <span>${message}</span>
@@ -800,14 +970,14 @@
         async fetchJobDetails(jobElement, jobPageType) {
             let active = false;
 
-            if(jobPageType === JobPageType.SEARCH){
+            if (jobPageType === JobPageType.SEARCH) {
                 const url = `https://www.zhipin.com/wapi/zpgeek/job/card.json?${jobElement.querySelector(".job-card-left").href.split("?")[1]}`;
                 const response = await fetch(url);
                 const json = await response.json();
-                if(json.code === 0){
+                if (json.code === 0) {
                     const card = json.zpData.jobCard;
                     const activeTimeDesc = card.activeTimeDesc;
-                    if(card.online || (activeTimeDesc && (activeTimeDesc.includes('刚刚') || activeTimeDesc.includes('日') || activeTimeDesc.includes('本周')))){
+                    if (card.online || (activeTimeDesc && (activeTimeDesc.includes('刚刚') || activeTimeDesc.includes('日') || activeTimeDesc.includes('本周')))) {
                         active = true;
                     } else {
                         console.log("活跃状态：" + activeTimeDesc);
@@ -819,7 +989,6 @@
                 "active": active,
             }
         }
-
 
 
     }
@@ -977,7 +1146,7 @@
             } else if (filterType === JobFilterType.MISMATCH_CONDITION) {
                 action = settings.conditionAction;
             }
-            if(action !== 'noop'){
+            if (action !== 'noop') {
                 actionFilterTypes.push(filterType);
             }
             return action;
