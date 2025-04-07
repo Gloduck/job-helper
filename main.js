@@ -8,6 +8,7 @@
 // @match        https://www.zhipin.com/*
 // @match        https://m.zhipin.com/*
 // @match        https://c.liepin.com/*
+// @match        https://www.liepin.com/*
 // @grant        GM_registerMenuCommand
 // @grant        GM_setValue
 // @grant        GM_getValue
@@ -592,6 +593,7 @@
 
         fetchJobElements(jobPageType) {
             if (jobPageType === JobPageType.SEARCH) {
+                return document.querySelectorAll('div.job-list-box > div');
             } else if (jobPageType === JobPageType.RECOMMEND) {
                 return document.querySelectorAll('ul.pull-up-content > li.pull-up-li');
             } else if (jobPageType === JobPageType.MOBILE_SEARCH) {
@@ -605,8 +607,7 @@
             if (jobElement.classList.contains('filter-blocked')) {
                 return null;
             }
-            if (jobPageType === JobPageType.SEARCH) {
-            } else if (jobPageType === JobPageType.RECOMMEND) {
+            if (jobPageType === JobPageType.SEARCH || jobPageType === JobPageType.RECOMMEND) {
                 const element = jobElement.querySelector('.job-detail-box > a');
                 if(element == null){
                     return null;
@@ -615,7 +616,17 @@
                 if (url === null) {
                     return null;
                 }
-                return new URLSearchParams(new URL(url).search).get('job_id');
+                // return new URLSearchParams(new URL(url).search).get('job_id');
+                const regex = /\/(\d+)\.shtml/;
+                const match = url.match(regex);
+                if (match && match[1]) {
+                    if(match[1].length === 10){
+                        return match[1].slice(2);
+                    } else {
+                        return match[1];
+                    }
+                }
+                return null;
             } else if (jobPageType === JobPageType.MOBILE_SEARCH) {
             } else if (jobPageType === JobPageType.MOBILE_RECOMMEND) {
             } else {
@@ -624,8 +635,7 @@
         }
 
         async parseSalary(jobElement, jobPageType) {
-            if (jobPageType === JobPageType.SEARCH) {
-            } else if (jobPageType === JobPageType.RECOMMEND) {
+            if (jobPageType === JobPageType.SEARCH || jobPageType === JobPageType.RECOMMEND) {
                 const salary = jobElement.querySelector('.job-detail-box > a > div > span:last-child').textContent;
                 return parseSalaryToMonthly(salary);
             } else if (jobPageType === JobPageType.MOBILE_SEARCH) {
@@ -636,8 +646,7 @@
         }
 
         async parseCompanyName(jobElement, jobPageType) {
-            if (jobPageType === JobPageType.SEARCH) {
-            } else if (jobPageType === JobPageType.RECOMMEND) {
+            if (jobPageType === JobPageType.SEARCH || jobPageType === JobPageType.RECOMMEND) {
                 return jobElement.querySelector('.job-detail-box > div > div > span').textContent;
             } else if (jobPageType === JobPageType.MOBILE_SEARCH) {
             } else if (jobPageType === JobPageType.MOBILE_RECOMMEND) {
@@ -647,8 +656,7 @@
         }
 
         async parseJobName(jobElement, jobPageType) {
-            if (jobPageType === JobPageType.SEARCH) {
-            } else if (jobPageType === JobPageType.RECOMMEND) {
+            if (jobPageType === JobPageType.SEARCH || jobPageType === JobPageType.RECOMMEND) {
                 return jobElement.querySelector('.job-detail-box > a > div > div > div').textContent;
             } else if (jobPageType === JobPageType.MOBILE_SEARCH) {
             } else if (jobPageType === JobPageType.MOBILE_RECOMMEND) {
@@ -659,6 +667,21 @@
 
         async jobIsActive(jobElement, jobPageType) {
             if (jobPageType === JobPageType.SEARCH) {
+                /*
+                    // 请求频繁容易被封，暂时先不支持
+                    const requestUrl = `https://${location.host}/a/${this.fetchJobUniqueKey(jobElement, jobPageType)}.shtml`;
+                    const response = await fetch(requestUrl);
+                    const documentText = await response.text();
+                    const parser = new DOMParser();
+                    const parseDocument = parser.parseFromString(documentText, 'text/html');
+                    const onlineElement = parseDocument.querySelector('div.name-box span.online');
+                    if(onlineElement == null){
+                        return false;
+                    }
+                    console.log("活跃状态：" + onlineElement.textContent);
+                    return onlineElement.textContent.includes('在线');
+                */
+                return true;
             } else if (jobPageType === JobPageType.RECOMMEND) {
                 const onlineMessage = jobElement.querySelector('.recruiter-info-box').textContent;
                 if (onlineMessage == null) {
@@ -679,8 +702,7 @@
 
         markCurJobElement(jobElement, jobPageType, jobFilterTypes) {
             let container;
-            if (jobPageType === JobPageType.SEARCH) {
-            } else if (jobPageType === JobPageType.RECOMMEND) {
+            if (jobPageType === JobPageType.SEARCH || jobPageType === JobPageType.RECOMMEND) {
                 container = jobElement.querySelector('.job-detail-box a > div');
             } else if (jobPageType === JobPageType.MOBILE_SEARCH) {
             } else if (jobPageType === JobPageType.MOBILE_RECOMMEND) {
@@ -700,13 +722,13 @@
                 container.insertBefore(markSpan, container.firstChild);
             }
             markSpan.textContent = '(' + jobFilterTypes.map(jobFilterType => this.convertFilterTypeToMessage(jobFilterType)).join('|') + ')';
+            this.changeJobElementColor(jobElement, jobPageType);
         }
 
         blockCurJobElement(jobElement, jobPageType, jobFilterTypes) {
             jobElement.classList.add('filter-blocked');
             const message = jobFilterTypes.map(jobFilterType => this.convertFilterTypeToMessage(jobFilterType)).join('|');
-            if (jobPageType === JobPageType.SEARCH) {
-            } else if (jobPageType === JobPageType.RECOMMEND) {
+            if (jobPageType === JobPageType.SEARCH || jobPageType === JobPageType.RECOMMEND) {
                 const cardBody = jobElement.querySelector('.job-detail-box > a');
                 cardBody.innerHTML = `
                     <div class="tip" style="color: dimgray; font-weight: bold; font-size: large; padding-top: 20px">已屏蔽</div>
@@ -717,12 +739,12 @@
                 `;
                 const avatar = jobElement.querySelector('div.job-card-right-box');
                 avatar.innerHTML = ``;
-                jobElement.style.backgroundColor = '#e1e1e1';
             } else if (jobPageType === JobPageType.MOBILE_SEARCH) {
             } else if (jobPageType === JobPageType.MOBILE_RECOMMEND) {
             } else {
                 throw new Error('Not a job element')
             }
+            this.changeJobElementColor(jobElement, jobPageType);
         }
 
         removeCurJobElement(jobElement, jobPageType) {
@@ -734,6 +756,20 @@
                 jobElement.parentElement.removeChild(jobElement);
             }
         }
+
+        /**
+         *
+         * @param {Element} jobElement
+         * @param {JobPageType} jobPageType
+         */
+        changeJobElementColor(jobElement, jobPageType) {
+            const container = jobElement.querySelector('.job-card-pc-container');
+            if(container == null){
+                return;
+            }
+            container.style.backgroundColor = '#e1e1e1';
+        }
+
     }
 
     class BossStrategy extends PlatFormStrategy {
