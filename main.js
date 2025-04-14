@@ -296,7 +296,7 @@
         settings.minSalary = parseInt(document.querySelector('#minSalary').value) || 0;
         settings.maxSalary = parseInt(document.querySelector('#maxSalary').value) || Infinity;
         settings.salaryFilterType = document.querySelector('input[name="salaryFilterType"]:checked').value;
-        settings.filterInactiveJob = document.querySelector('#filterInactiveJob:checked').value;
+        settings.filterInactiveJob = document.querySelector('#filterInactiveJob:checked').value || false;
         settings.viewedAction = document.querySelector('input[name="viewedAction"]:checked').value;
         settings.blacklistAction = document.querySelector('input[name="blacklistAction"]:checked').value;
         settings.conditionAction = document.querySelector('input[name="conditionAction"]:checked').value;
@@ -1095,6 +1095,9 @@
                         console.log("活跃状态：" + activeTimeDesc);
                     }
                 }
+            } else {
+                // 防止限流，其他页面展示不支持
+                active = true;
             }
 
             return {
