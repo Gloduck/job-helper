@@ -411,6 +411,9 @@
      * @param {String} uniqueKey
      */
     function setJobViewed(jobPlatform, uniqueKey) {
+        if(uniqueKey == null){
+            return;
+        }
         let jobViewKey = getJobViewKey(jobPlatform);
         const jobViewedSet = getJobViewedSet(jobPlatform);
         if (jobViewedSet.has(uniqueKey)) {
