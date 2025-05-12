@@ -3,7 +3,7 @@
 // @namespace    job_seeking_helper
 // @author       Gloduck
 // @license MIT
-// @version      1.1.2
+// @version      1.1.4
 // @description  为相关的求职平台（BOSS直聘、拉勾、智联招聘、猎聘）添加一些实用的小功能，如自定义薪资范围、过滤黑名单公司等。
 // @match        https://www.zhipin.com/*
 // @match        https://m.zhipin.com/*
@@ -128,7 +128,7 @@
 
                     <label style="display: flex; align-items: center; gap: 8px; color: #34495e;">
                         <input type="checkbox" id="filterInactiveJob" ${settings.filterInactiveJob ? 'checked' : ''}>
-                        过滤不活跃的职位
+                        过滤不活跃的职位(只有少数页面支持)
                     </label>
                 </div>
 
@@ -411,7 +411,7 @@
      * @param {String} uniqueKey
      */
     function setJobViewed(jobPlatform, uniqueKey) {
-        if(uniqueKey == null){
+        if (uniqueKey == null) {
             return;
         }
         let jobViewKey = getJobViewKey(jobPlatform);
@@ -853,10 +853,11 @@
 
     class BossStrategy extends PlatFormStrategy {
         fetchJobPageType() {
-            if (document.querySelector('.search-job-result') != null) {
-                return JobPageType.SEARCH;
-            } else if (document.querySelector('.rec-job-list') != null) {
+            // BOSS网页版推荐页和搜索页现在一毛一样了
+            if (document.querySelector('[ka="jobs_recommend_tab_click"].active') != null) {
                 return JobPageType.RECOMMEND;
+            } else if (document.querySelector('.job-recommend-result') != null) {
+                return JobPageType.SEARCH;
             } else if (document.querySelector('.job-recommend .job-list') != null) {
                 return JobPageType.MOBILE_RECOMMEND;
             } else if (document.querySelector('#main .job-list') != null) {
@@ -866,10 +867,8 @@
         }
 
         fetchJobElements(jobPageType) {
-            if (jobPageType === JobPageType.SEARCH) {
-                return document.querySelectorAll('ul.job-list-box > li.job-card-wrapper');
-            } else if (jobPageType === JobPageType.RECOMMEND) {
-                return document.querySelectorAll('ul.rec-job-list > div > li.job-card-box');
+            if (jobPageType === JobPageType.SEARCH || jobPageType == JobPageType.RECOMMEND) {
+                return document.querySelectorAll('ul.rec-job-list > div > div > li.job-card-box');
             } else if (jobPageType === JobPageType.MOBILE_SEARCH || jobPageType === JobPageType.MOBILE_RECOMMEND) {
                 return document.querySelectorAll('.job-list > ul > li');
             } else {
@@ -881,17 +880,7 @@
             if (jobElement.classList.contains('filter-blocked')) {
                 return null;
             }
-            if (jobPageType === JobPageType.SEARCH) {
-                const element = jobElement.querySelector('.job-card-left');
-                if (element == null) {
-                    return null;
-                }
-                const url = element.href;
-                if (url == null) {
-                    return null;
-                }
-                return url.split('/job_detail/')[1].split('.html')[0];
-            } else if (jobPageType === JobPageType.RECOMMEND) {
+            if (jobPageType === JobPageType.SEARCH || jobPageType === JobPageType.RECOMMEND) {
                 const element = jobElement.querySelector('.job-name');
                 if (element == null) {
                     return null;
@@ -918,10 +907,7 @@
         }
 
         async parseSalary(jobElement, jobPageType) {
-            if (jobPageType === JobPageType.SEARCH) {
-                const salary = jobElement.querySelector('.salary').textContent;
-                return parseSalaryToMonthly(salary);
-            } else if (jobPageType === JobPageType.RECOMMEND) {
+            if (jobPageType === JobPageType.SEARCH || jobPageType === JobPageType.RECOMMEND) {
                 const salary = this.convertSalaryField(jobElement.querySelector('.job-salary').textContent);
                 return parseSalaryToMonthly(salary);
             } else if (jobPageType === JobPageType.MOBILE_SEARCH || jobPageType === JobPageType.MOBILE_RECOMMEND) {
@@ -933,24 +919,20 @@
         }
 
         async parseCompanyName(jobElement, jobPageType) {
-            if (jobPageType === JobPageType.SEARCH) {
-                return jobElement.querySelector('.company-name > a').textContent
-            } else if (jobPageType === JobPageType.RECOMMEND) {
-                return jobElement.querySelector('.boss-name').textContent
+            if (jobPageType === JobPageType.SEARCH || jobPageType === JobPageType.RECOMMEND) {
+                return jobElement.querySelector('.boss-name').textContent;
             } else if (jobPageType === JobPageType.MOBILE_SEARCH || jobPageType === JobPageType.MOBILE_RECOMMEND) {
-                return jobElement.querySelector('.company').textContent
+                return jobElement.querySelector('.company').textContent;
             } else {
                 throw new Error('Not a job element')
             }
         }
 
         async parseJobName(jobElement, jobPageType) {
-            if (jobPageType === JobPageType.SEARCH) {
-                return jobElement.querySelector('.job-name').textContent
-            } else if (jobPageType === JobPageType.RECOMMEND) {
-                return jobElement.querySelector('.job-name').textContent
+            if (jobPageType === JobPageType.SEARCH || jobPageType === JobPageType.RECOMMEND) {
+                return jobElement.querySelector('.job-name').textContent;
             } else if (jobPageType === JobPageType.MOBILE_SEARCH || jobPageType === JobPageType.MOBILE_RECOMMEND) {
-                return jobElement.querySelector('.title-text').textContent
+                return jobElement.querySelector('.title-text').textContent;
             } else {
                 throw new Error('Not a job element')
             }
@@ -1008,19 +990,7 @@
         blockCurJobElement(jobElement, jobPageType, jobFilterTypes) {
             jobElement.classList.add('filter-blocked');
             const message = jobFilterTypes.map(jobFilterType => this.convertFilterTypeToMessage(jobFilterType)).join('|');
-            if (jobPageType === JobPageType.SEARCH) {
-                const cardBody = jobElement.querySelector('.job-card-body');
-                cardBody.innerHTML = `
-                    <div class="job-card-left"></div>
-                    <div class="tip" style="color: dimgray; font-weight: bold; font-size: large; padding-top: 20px">已屏蔽</div>
-                    <div class="job-card-right"></div>
-                    `;
-                const cardFooter = jobElement.querySelector('.job-card-footer');
-                cardFooter.innerHTML = `
-                    <div class="info-desc">${message}</div>
-                    `;
-                this.changeJobElementColor(jobElement, jobPageType);
-            } else if (jobPageType === JobPageType.RECOMMEND) {
+            if (jobPageType === JobPageType.SEARCH || jobPageType === JobPageType.RECOMMEND) {
                 const cardBody = jobElement.querySelector('.job-info');
                 cardBody.innerHTML = `
                     <div class="tip" style="color: dimgray; font-weight: bold; font-size: large; padding-top: 20px">已屏蔽</div>
@@ -1086,7 +1056,7 @@
             let active = false;
 
             if (jobPageType === JobPageType.SEARCH) {
-                const url = `https://www.zhipin.com/wapi/zpgeek/job/card.json?${jobElement.querySelector(".job-card-left").href.split("?")[1]}`;
+/*                 const url = `https://www.zhipin.com/wapi/zpgeek/job/card.json?${jobElement.querySelector(".job-card-left").href.split("?")[1]}`;
                 const response = await fetch(url);
                 const json = await response.json();
                 if (json.code === 0) {
@@ -1097,7 +1067,9 @@
                     } else {
                         console.log("活跃状态：" + activeTimeDesc);
                     }
-                }
+                } */
+               // 目前列表页暂时不返回相关参数了，其他接口又容易限流，暂时不支持活跃度检查了。
+               active = true;
             } else {
                 // 防止限流，其他页面展示不支持
                 active = true;
